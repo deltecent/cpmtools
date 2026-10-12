@@ -97,6 +97,63 @@ static int mkfs(struct cpmSuperBlock *drive, const char *name, const char *forma
     return -1;
   }
   /*}}}*/
+  if (drive->hardsector) /* wrap the raw sectors in hard sector slots */ /*{{{*/
+  {
+    char *raw;
+    off_t rawlen;
+    ssize_t n;
+    int track,sect;
+    const char *err;
+
+    /* the file written above is a headerless image of the boot tracks and the
+     * directory; read it back and reformat the whole disk through the device,
+     * which adds headers and checksums and fills the rest with 0xe5. */
+    if ((fd=open(name,O_BINARY|O_RDONLY))==-1 || (rawlen=lseek(fd,0,SEEK_END))==-1 || lseek(fd,0,SEEK_SET)==-1)
+    {
+      boo=strerror(errno);
+      return -1;
+    }
+    if ((raw=malloc(rawlen+1))==(char*)0)
+    {
+      boo=strerror(errno);
+      close(fd);
+      return -1;
+    }
+    for (bytes=0; bytes<(unsigned int)rawlen; bytes+=n) if ((n=read(fd,raw+bytes,rawlen-bytes))<=0)
+    {
+      boo=n==0 ? "unexpected end of file" : strerror(errno);
+      close(fd);
+      free(raw);
+      return -1;
+    }
+    close(fd);
+    if ((err=Device_open(&drive->dev,name,O_RDWR|O_TRUNC,NULL)))
+    {
+      boo=err;
+      free(raw);
+      return -1;
+    }
+    memset(buf,0xe5,sizeof(buf));
+    for (track=0; track<drive->tracks; ++track) for (sect=0; sect<drive->sectrk; ++sect)
+    {
+      off_t pos=((off_t)track*drive->sectrk+sect)*drive->secLength;
+
+      if ((err=Device_writeSector(&drive->dev,track,sect,pos<rawlen ? raw+pos : buf)))
+      {
+        boo=err;
+        Device_close(&drive->dev);
+        free(raw);
+        return -1;
+      }
+    }
+    free(raw);
+    if ((err=Device_close(&drive->dev)))
+    {
+      boo=err;
+      return -1;
+    }
+  }
+  /*}}}*/
   if (timeStamps && !(drive->type==CPMFS_P2DOS || drive->type==CPMFS_DR3)) /*{{{*/
   {
     int offset,j;

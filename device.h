@@ -8,9 +8,15 @@
 #define CPMDRV_WINNT 2 /* Windows NT floppy drive accessed via CreateFile */
 #endif
 
+/* Hard sector formats: the image holds the whole controller sector slot,
+ * including header, stop byte and checksum, not just the CP/M payload. */
+#define DEVICE_HS_NONE  0
+#define DEVICE_HS_ALTAIR 1 /* MITS 88-DCDD: 137 byte slots, 32 per track */
+
 struct Device
 {
   int opened;
+  int hardsector;
 
   int secLength;
   int tracks;
@@ -29,6 +35,7 @@ struct Device
 
 const char *Device_open(struct Device *self, const char *filename, int mode, const char *deviceOpts);
 const char *Device_setGeometry(struct Device *self, int secLength, int sectrk, int tracks, off_t offset, const char *libdskGeometry);
+const char *Device_setHardSector(struct Device *self, int type);
 const char *Device_close(struct Device *self);
 const char *Device_readSector(const struct Device *self, int track, int sector, char *buf);
 const char *Device_writeSector(const struct Device *self, int track, int sector, const char *buf);

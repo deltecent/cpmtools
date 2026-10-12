@@ -1,3 +1,8 @@
+Changes since 2.23:
+
+o  Added MITS Altair 88-DCDD hard sector image support (diskdef keyword
+   hardsector altair, diskdefs altair and fdcplus8mb)
+
 Changes since 2.22:
 
 o  Use 16 bit block pointers for file systems > 256 blocks, not >= 256

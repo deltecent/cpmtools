@@ -1,7 +1,7 @@
 .\" Believe it or not, reportedly there are nroffs which do not know \(en
 .if n .ds en -
 .if t .ds en \(en
-.TH DISKDEFS 5 "November 2, 2022" "CP/M tools" "File formats"
+.TH DISKDEFS 5 "October 12, 2026" "CP/M tools" "File formats"
 .SH NAME \"{{{roff}}}\"{{{
 diskdefs \- CP/M disk and file system format definitions
 .\"}}}
@@ -29,11 +29,15 @@ A diskdefs file consists of one or more entries of the format:
   [\fBoffset\fP \fIsize\fP]
   [\fBlogicalextents\fP \fIcount\fP]
   [\fBlibdsk:format\fP \fIname\fP]
+  [\fBhardsector\fP \fBaltair\fP]
 \fBend\fP
 .RE
 .fi
 .PP
 \fBskew\fP and \fBskewtab\fP must only be used exclusively.
+.PP
+A file named \fBdiskdefs\fP in the current directory is used in preference to
+the installed one.
 .PP
 Comments are marked with a leading hash or semicolon and extend to the
 end of the line.
@@ -46,6 +50,15 @@ using an inflated DPB ALV0.  If the format makes use of that,
 This is for CP/M systems that map multiple logical tracks onto a physical
 track. While raw disk images can be configured for doing the same,
 accessing libdsk images needs to be done by physical tracks.
+.PP
+\fBhardsector altair\fP selects the MITS Altair 88-DCDD hard sector image
+format, in which every CP/M sector is stored in a 137 byte slot together with
+a track/sector header, a stop byte and a checksum, and the slots are stored
+with the Altair skew.  It requires \fBseclen 128\fP and \fBsectrk 32\fP;
+\fBskewtab\fP must be the CP/M BIOS translation table (zero based), not the
+physical slot order.  Headers and checksums are verified when reading and
+regenerated when writing, and \fBmkfs.cpm\fP creates fully formatted images.
+It is not available when cpmtools is built with libdsk.
 .\"}}}
 .SH "SEE ALSO" \"{{{
 .IR cpm (5)
