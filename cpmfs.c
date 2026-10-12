@@ -866,6 +866,15 @@ static int diskdefReadSuper(struct cpmSuperBlock *d, char const *format)
             exit(1);
           }
         }
+        else if (strcmp(argv[0],"hardsector")==0)
+        {
+          if (strcmp(argv[1],"altair")==0) d->hardsector=DEVICE_HS_ALTAIR;
+          else
+          {
+            fprintf(stderr,"%s: invalid hardsector type `%s' in line %d\n",cmd,argv[1],ln);
+            exit(1);
+          }
+        }
 	else if (strcmp(argv[0], "libdsk:format")==0)
         {
           strncpy(d->libdskGeometry, argv[1], sizeof(d->libdskGeometry) - 1);
@@ -889,6 +898,7 @@ static int diskdefReadSuper(struct cpmSuperBlock *d, char const *format)
       d->blksiz=d->boottrk=d->bootsec=d->secLength=d->sectrk=d->tracks=d->maxdir=-1;
       d->dirblks=0;
       d->libdskGeometry[0] = 0;
+      d->hardsector=DEVICE_HS_NONE;
       if (strcmp(argv[1],format)==0) found=1;
     }
     ++ln;
@@ -978,6 +988,7 @@ static int amsReadSuper(struct cpmSuperBlock *d, char const *format)
   d->blksiz    = 128 << boot_spec[6];
   d->maxdir    = (d->blksiz / 32) * boot_spec[7];
   d->dirblks   = 0;
+  d->hardsector = DEVICE_HS_NONE;
   d->skew      = 1; /* Amstrads skew at the controller level */
   d->skewtab   = (int*)0;
   d->boottrk   = boot_spec[5];
@@ -1064,6 +1075,8 @@ int cpmReadSuper(struct cpmSuperBlock *d, struct cpmInode *root, char const *for
   }
 
   boo = Device_setGeometry(&d->dev,d->secLength,d->sectrk,d->tracks,d->offset,d->libdskGeometry);
+  if (boo) return -1;
+  boo = Device_setHardSector(&d->dev,d->hardsector);
   if (boo) return -1;
 
   if (d->skewtab==(int*)0) /* generate skew table */ /*{{{*/

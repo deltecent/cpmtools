@@ -104,6 +104,14 @@ const char *Device_setGeometry(struct Device *this, int secLength, int sectrk, i
   return NULL;
 }
 /*}}}*/
+/* Device_setHardSector  -- Select hard sector slot format          */ /*{{{*/
+const char *Device_setHardSector(struct Device *this, int type)
+{
+  this->hardsector=DEVICE_HS_NONE;
+  if (type!=DEVICE_HS_NONE) return "hard sector formats are not supported with libdsk";
+  return NULL;
+}
+/*}}}*/
 /* Device_close          -- Close an image file                     */ /*{{{*/
 const char *Device_close(struct Device *this)
 {
