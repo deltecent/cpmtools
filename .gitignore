@@ -1,0 +1,14 @@
+*.o
+/cpmls
+/cpmrm
+/cpmcp
+/cpmchmod
+/cpmchattr
+/mkfs.cpm
+/fsck.cpm
+/fsed.cpm
+/Makefile
+/config.h
+/config.log
+/config.status
+/autom4te.cache
