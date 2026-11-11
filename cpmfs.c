@@ -12,6 +12,11 @@
 
 #include "cpmdir.h"
 #include "cpmfs.h"
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
 /*}}}*/
 /* #defines */ /*{{{*/
 #undef CPMFS_DEBUG
@@ -709,6 +714,37 @@ void cpmglobfree(char **dirent, int entries)
 /*}}}*/
 
 /* superblock management */
+/* openDiskdefs       -- open the diskdefs file                  */ /*{{{*/
+/* Search the current directory, then (on Windows, where there is no
+ * fixed install location) the directory holding the executable, then
+ * the compiled-in DISKDEFS path.
+ */
+static FILE *openDiskdefs(void)
+{
+  FILE *fp;
+
+  if ((fp=fopen("diskdefs","r"))!=(FILE*)0) return fp;
+#ifdef _WIN32
+  {
+    char path[MAX_PATH+sizeof("diskdefs")];
+    DWORD len=GetModuleFileNameA(NULL,path,MAX_PATH);
+
+    if (len>0 && len<MAX_PATH)
+    {
+      char *sep=strrchr(path,'\\');
+
+      if (sep==(char*)0) sep=strrchr(path,'/');
+      if (sep!=(char*)0)
+      {
+        strcpy(sep+1,"diskdefs");
+        if ((fp=fopen(path,"r"))!=(FILE*)0) return fp;
+      }
+    }
+  }
+#endif
+  return fopen(DISKDEFS,"r");
+}
+/*}}}*/
 /* diskdefReadSuper   -- read super block from diskdefs file     */ /*{{{*/
 static int diskdefReadSuper(struct cpmSuperBlock *d, char const *format)
 {
@@ -719,9 +755,13 @@ static int diskdefReadSuper(struct cpmSuperBlock *d, char const *format)
 
   d->libdskGeometry[0] = '\0';
   d->type=0;
-  if ((fp=fopen("diskdefs","r"))==(FILE*)0 && (fp=fopen(DISKDEFS,"r"))==(FILE*)0)
+  if ((fp=openDiskdefs())==(FILE*)0)
   {
+#ifdef _WIN32
+    fprintf(stderr,"%s: `diskdefs' was found neither in the current directory, nor next to the program, nor at `" DISKDEFS "'.\n",cmd);
+#else
     fprintf(stderr,"%s: Neither `diskdefs' nor `" DISKDEFS "' could be opened.\n",cmd);
+#endif
     exit(1);
   }
   ln=1;
