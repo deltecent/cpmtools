@@ -28,6 +28,15 @@ is available as a GNU zipped tape archive from:
 
   http://www.moria.de/~michael/cpmtools/
 
+Prebuilt binaries for Linux (x86_64, arm64), macOS (universal) and
+Windows (x86_64) are attached to the GitHub releases.  The Linux and
+macOS archives are laid out like /usr/local; install them with:
+
+  sudo tar -C /usr/local --strip-components=1 -xzf cpmtools-*.tar.gz
+
+On Windows, unpack the zip anywhere and keep diskdefs in the same
+directory as the .exe files.  fsed.cpm is not included for Windows.
+
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
 Free Software Foundation; either version 3 of the License, or (at your

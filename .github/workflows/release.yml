@@ -1,0 +1,194 @@
+name: Release
+
+# Pushing a tag vX.YY builds the release binaries and attaches them to a draft
+# GitHub release. Running the workflow by hand builds the same archives as
+# workflow artifacts without creating a release.
+#
+# The Unix archives are laid out like the /usr/local prefix the tools are
+# configured for (bin/, share/diskdefs, share/man/), so they can be unpacked
+# with tar -C /usr/local --strip-components=1. The Windows zip holds the .exe
+# files next to diskdefs, where the tools look for it.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86_64
+            os: ubuntu-22.04
+            shell: bash
+            cflags: -O2
+            ldflags: -static
+            libs: -ltinfo
+          - platform: linux-arm64
+            os: ubuntu-22.04-arm
+            shell: bash
+            cflags: -O2
+            ldflags: -static
+            libs: -ltinfo
+          - platform: macos-universal
+            os: macos-14
+            shell: bash
+            cflags: -O2 -arch arm64 -arch x86_64 -mmacosx-version-min=11.0
+            ldflags: -arch arm64 -arch x86_64 -mmacosx-version-min=11.0
+          - platform: windows-x86_64
+            os: windows-latest
+            shell: msys2 {0}
+            cflags: -O2
+            ldflags: -static
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    steps:
+      # Keep LF line endings on Windows: configure is a shell script.
+      - name: Disable autocrlf
+        shell: bash
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v7
+
+      - name: Install MSYS2
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: make diffutils zip mingw-w64-ucrt-x86_64-gcc
+
+      - name: Install ncurses
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libncurses-dev
+
+      - name: Read version
+        id: version
+        run: |
+          version=$(sed -n 's/^VERSION=\([0-9.]*\).*/\1/p' configure.in)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match VERSION=$version in configure.in"
+            exit 1
+          fi
+
+      - name: Configure
+        env:
+          CFLAGS: ${{ matrix.cflags }}
+          LDFLAGS: ${{ matrix.ldflags }}
+          LIBS: ${{ matrix.libs }}
+        run: ./configure --prefix=/usr/local
+
+      - name: Build
+        run: make
+
+      - name: Test
+        run: |
+          [ "$RUNNER_OS" = Windows ] && export EXEEXT=.exe
+          sh .github/scripts/smoke-test.sh .
+
+      - name: Check binaries
+        run: |
+          tools="cpmls cpmrm cpmcp cpmchmod cpmchattr mkfs.cpm fsck.cpm"
+          case "${{ matrix.platform }}" in
+            windows-*) ;;
+            *)
+              if [ ! -f fsed.cpm ]; then
+                echo "::error::fsed.cpm was not built (curses not found)"
+                exit 1
+              fi
+              tools="$tools fsed.cpm" ;;
+          esac
+          for tool in $tools; do
+            case "${{ matrix.platform }}" in
+              linux-*)
+                file "$tool"
+                if ldd "$tool" >/dev/null 2>&1; then
+                  echo "::error::$tool is dynamically linked"
+                  exit 1
+                fi ;;
+              macos-*)
+                file "$tool"
+                lipo "$tool" -verify_arch arm64 x86_64 ;;
+              windows-*)
+                file "$tool.exe"
+                # Only Windows system DLLs, no MinGW runtime DLLs
+                if ldd "$tool.exe" | grep -vi '/c/windows/' | grep -q '=>'; then
+                  ldd "$tool.exe"
+                  echo "::error::$tool.exe depends on non-system DLLs"
+                  exit 1
+                fi ;;
+            esac
+          done
+
+      - name: Package
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: |
+          name=cpmtools-${{ steps.version.outputs.version }}-${{ matrix.platform }}
+          pkg=dist/$name
+          mkdir -p "$pkg"
+          if [ "$RUNNER_OS" = Windows ]; then
+            cp cpmls.exe cpmrm.exe cpmcp.exe cpmchmod.exe cpmchattr.exe \
+               mkfs.cpm.exe fsck.cpm.exe diskdefs README COPYING NEWS "$pkg/"
+            strip "$pkg"/*.exe
+            # From another directory, the tools must find the diskdefs next
+            # to them
+            top=$PWD
+            tmp=$(mktemp -d)
+            (cd "$tmp" && "$top/$pkg/mkfs.cpm.exe" -f ibm-3740 test.img &&
+              "$top/$pkg/cpmls.exe" -f ibm-3740 test.img) ||
+              { echo "::error::the packaged tools did not find diskdefs"; exit 1; }
+            rm -rf "$tmp"
+            (cd dist && zip -r "$name.zip" "$name")
+          else
+            make install DESTDIR="$PWD/stage"
+            mv stage/usr/local/bin stage/usr/local/share "$pkg/"
+            mkdir -p "$pkg/share/doc/cpmtools"
+            cp README COPYING NEWS "$pkg/share/doc/cpmtools/"
+            # make install strips; strip drops the linker's signature, so the
+            # macOS tools are signed here
+            if [ "$RUNNER_OS" = macOS ]; then
+              sh .github/scripts/macos-sign.sh "$pkg"
+            fi
+            tar -C dist -czf "dist/$name.tar.gz" "$name"
+          fi
+          ls -l dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.platform }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+          if-no-files-found: error
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist
+          sha256sum *.tar.gz *.zip > SHA256SUMS
+          gh release create "$GITHUB_REF_NAME" *.tar.gz *.zip SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" --draft --generate-notes \
+            --title "cpmtools ${GITHUB_REF_NAME#v}"
