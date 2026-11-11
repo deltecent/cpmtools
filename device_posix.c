@@ -9,6 +9,11 @@
 
 #include "device.h"
 /*}}}*/
+/* #defines */ /*{{{*/
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
+/*}}}*/
 
 /* Device_open           -- Open an image file                      */ /*{{{*/
 const char *Device_open(struct Device *this, const char *filename, int mode, const char *deviceOpts)
@@ -17,7 +22,7 @@ const char *Device_open(struct Device *this, const char *filename, int mode, con
   {
     return "POSIX driver accepts no options (build compiled without libdsk)";
   }
-  this->fd=open(filename,mode);
+  this->fd=open(filename,mode|O_BINARY);
   this->opened=(this->fd==-1?0:1);
   return ((this->fd==-1)?strerror(errno):(const char*)0);
 }

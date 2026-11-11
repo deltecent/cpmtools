@@ -2,6 +2,8 @@ Changes since 2.23:
 
 o  Added MITS Altair 88-DCDD hard sector image support (diskdef keyword
    hardsector altair, diskdefs altair and fdcplus8mb)
+o  Builds on Windows again with MinGW-w64: image files are opened in
+   binary mode, and diskdefs is also looked up next to the executable
 
 Changes since 2.22:
 

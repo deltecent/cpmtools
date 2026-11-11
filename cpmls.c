@@ -11,6 +11,14 @@
 #include "getopt_.h"
 #include "cpmfs.h"
 /*}}}*/
+/* #defines */ /*{{{*/
+#ifndef S_IWGRP
+#define S_IWGRP 0020
+#endif
+#ifndef S_IWOTH
+#define S_IWOTH 0002
+#endif
+/*}}}*/
 
 /* variables */ /*{{{*/
 static const char * const month[12]={"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec" };
