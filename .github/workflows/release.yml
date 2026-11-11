@@ -33,7 +33,7 @@ jobs:
             ldflags: -static
             libs: -ltinfo
           - platform: macos-universal
-            os: macos-14
+            os: macos-15
             shell: bash
             cflags: -O2 -arch arm64 -arch x86_64 -mmacosx-version-min=11.0
             ldflags: -arch arm64 -arch x86_64 -mmacosx-version-min=11.0
